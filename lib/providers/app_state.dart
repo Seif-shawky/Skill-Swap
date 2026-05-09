@@ -7,18 +7,24 @@ import '../models/chat_thread.dart';
 import '../models/skill_listing.dart';
 import '../services/auth_service.dart';
 import '../services/chat_service.dart';
+import '../services/review_service.dart';
 import '../services/skill_service.dart';
+import '../services/swap_request_service.dart';
 
 class AppState extends ChangeNotifier {
   AppState({
     required this.authService,
     required this.skillService,
     required this.chatService,
+    required this.swapRequestService,
+    required this.reviewService,
   });
 
   final AuthService authService;
   final SkillService skillService;
   final ChatService chatService;
+  final SwapRequestService swapRequestService;
+  final ReviewService reviewService;
 
   AppUser? currentUser;
   List<SkillListing> listings = [];
@@ -88,6 +94,48 @@ class AppState extends ChangeNotifier {
       listings = [listing.copyDemo(id: DateTime.now().millisecondsSinceEpoch.toString()), ...listings];
       notifyListeners();
     }
+  }
+
+  Future<bool> requestSwap(SkillListing listing) async {
+    final user = currentUser;
+    if (user == null) return false;
+    if (listing.ownerId == user.uid) {
+      errorMessage = 'You cannot request your own listing.';
+      notifyListeners();
+      return false;
+    }
+    var persisted = false;
+    await _guard(() async {
+      persisted = await swapRequestService.createRequest(requester: user, listing: listing);
+    });
+    return persisted;
+  }
+
+  Future<bool> completeSwapAndReview({
+    required ChatThread thread,
+    required int rating,
+    String? comment,
+  }) async {
+    final user = currentUser;
+    if (user == null) return false;
+    final swapRequestId = thread.swapRequestId;
+    if (swapRequestId == null || swapRequestId.isEmpty) return false;
+    await _guard(() async {
+      await swapRequestService.markCompleted(swapRequestId);
+      await reviewService.submitReview(
+        swapRequestId: swapRequestId,
+        fromUserId: user.uid,
+        toUserId: thread.peerId,
+        rating: rating,
+        comment: comment,
+      );
+      await chatService.sendMessage(
+        chatId: thread.id,
+        senderId: user.uid,
+        text: 'Swap completed and rated $rating/5.',
+      );
+    });
+    return true;
   }
 
   List<SkillListing> get recommendedListings {

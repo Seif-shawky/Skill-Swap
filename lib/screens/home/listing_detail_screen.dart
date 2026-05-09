@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../models/skill_listing.dart';
+import '../../providers/app_state.dart';
 
 class ListingDetailScreen extends StatelessWidget {
   const ListingDetailScreen({super.key, required this.listing});
@@ -49,10 +51,25 @@ class ListingDetailScreen extends StatelessWidget {
           Text(listing.description, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 28),
           FilledButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Swap request created for the demo. Connect Firebase to persist it.')),
-              );
+            onPressed: () async {
+              final state = context.read<AppState>();
+              if (!state.isLoggedIn) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please sign in to request a skill swap.')),
+                );
+                return;
+              }
+              try {
+                final persisted = await state.requestSwap(listing);
+                if (!context.mounted) return;
+                final message = persisted
+                  ? 'Swap request sent to ${listing.ownerName}. They can reply in chat.'
+                  : 'Swap request created for the demo. Connect Firebase to persist it.';
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+              } catch (error) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+              }
             },
             icon: const Icon(Icons.handshake_outlined),
             label: const Text('Request skill swap'),

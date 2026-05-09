@@ -8,7 +8,9 @@ import 'routes/route_names.dart';
 import 'services/auth_service.dart';
 import 'services/cache_service.dart';
 import 'services/chat_service.dart';
+import 'services/review_service.dart';
 import 'services/skill_service.dart';
+import 'services/swap_request_service.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -31,11 +33,15 @@ Future<void> main() async {
         Provider(create: (_) => AuthService(firebaseReady: firebaseReady)),
         Provider(create: (_) => SkillService(firebaseReady: firebaseReady, cacheService: cacheService)),
         Provider(create: (_) => ChatService(firebaseReady: firebaseReady)),
+        Provider(create: (_) => SwapRequestService(firebaseReady: firebaseReady)),
+        Provider(create: (_) => ReviewService(firebaseReady: firebaseReady)),
         ChangeNotifierProvider(
           create: (context) => AppState(
             authService: context.read<AuthService>(),
             skillService: context.read<SkillService>(),
             chatService: context.read<ChatService>(),
+            swapRequestService: context.read<SwapRequestService>(),
+            reviewService: context.read<ReviewService>(),
           )..bootstrap(),
         ),
       ],

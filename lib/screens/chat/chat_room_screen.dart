@@ -22,7 +22,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     final userId = state.currentUser?.uid ?? 'demo-user';
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.thread.peerName)),
+      appBar: AppBar(
+        title: Text(widget.thread.peerName),
+        actions: [
+          IconButton(
+            tooltip: 'Complete swap',
+            icon: const Icon(Icons.verified_outlined),
+            onPressed: () => _openCompleteSwapDialog(context, state),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -88,5 +97,88 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openCompleteSwapDialog(BuildContext context, AppState state) async {
+    final swapRequestId = widget.thread.swapRequestId;
+    if (widget.thread.peerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat participant not resolved yet.')),
+      );
+      return;
+    }
+    if (swapRequestId == null || swapRequestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Swap request not linked to this chat yet.')),
+      );
+      return;
+    }
+
+    final commentController = TextEditingController();
+    var rating = 5;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Complete swap'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Rate your swap partner'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (var value = 1; value <= 5; value++)
+                        ChoiceChip(
+                          label: Text('$value'),
+                          selected: rating == value,
+                          onSelected: (_) => setState(() => rating = value),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: commentController,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a short review (optional)',
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true) {
+      commentController.dispose();
+      return;
+    }
+
+    final succeeded = await state.completeSwapAndReview(
+      thread: widget.thread,
+      rating: rating,
+      comment: commentController.text,
+    );
+    commentController.dispose();
+    if (!context.mounted) return;
+
+    final message = succeeded ? 'Swap completed and rating sent.' : 'Unable to complete swap yet.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
